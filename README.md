@@ -145,4 +145,5 @@ It is ideal for showcasing full‑stack Java development and backend integration
 👨‍💻 Author
 Ranajit Baran Chowdhury  
 Software QA Engineer | Automation & Manual Testing
+
 Passionate about building practical, real‑world software solutions.
