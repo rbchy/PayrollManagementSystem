@@ -1,154 +1,43 @@
-💼 Payroll Management System
+# Payroll Management System
 
-A desktop-based payroll automation system designed to simplify and modernize employee salary processing.
+## Overview
+This Payroll Management System is designed to streamline and automate the payroll processes for businesses of all sizes. By implementing an efficient and user-friendly interface, it allows users to manage employee information, process payroll, and handle tax calculations seamlessly.
 
-Built using Java (Swing/AWT) and MySQL, this application provides an end-to-end solution for managing employees, attendance, and payroll with accuracy, efficiency, and real-world business logic.
+## Features
+- **Employee Management**: Add, update, and delete employee records with ease.
+- **Payroll Processing**: Quick calculation of salaries based on hours worked or fixed salaries.
+- **Tax Management**: Automatic tax calculations and report generation.
+- **User Friendly Interface**: Intuitive design for easy navigation.
 
-👨‍💻 Author
+## System Requirements
+- Operating System: Windows, macOS, or Linux
+- Programming Language: Python 3.x
+- Database: SQLite or any compatible database management system.
 
-Ranajit Baran Chowdhury
-Software QA Engineer | Automation & Manual Testing
+## Installation Instructions
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/rbchy/PayrollManagementSystem.git
+   ```
+2. Navigate to the project directory:
+   ```bash
+   cd PayrollManagementSystem
+   ```
+3. Install the required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Run the application:
+   ```bash
+   python app.py
+   ```
 
-Passionate about building practical, real-world software solutions and scalable systems.
+## Usage
+- Launch the application and follow the on-screen instructions to manage payroll tasks.
+- Ensure to maintain regular backups of your data to prevent loss.
 
-🚀 Key Features
+## Contribution
+Contributions are welcome! Please fork the repository and submit a pull request for any improvements or features you would like to add.
 
-A complete suite of payroll operations tailored for HR teams and small organizations:
-
-🔐 Secure Authentication
-User Login & Signup
-Credential validation and access control
-👨‍💼 Employee Management
-Add, update, search, and delete employee records
-Structured employee database handling
-💰 Automated Salary Calculation
-Calculates:
-HRA (House Rent Allowance)
-DA (Dearness Allowance)
-PF (Provident Fund)
-Generates:
-Gross Salary
-Net Salary
-📅 Attendance Tracking
-Daily attendance marking
-Leave management
-Monthly attendance reports
-🗄️ Database Integration
-MySQL-based persistent storage
-Efficient data retrieval using JDBC
-🧾 Pay Slip Generation
-Generate professional salary slips
-Printable payroll reports
-🧩 System Architecture
-Login / Signup
-      │
-      ▼
-Main Dashboard
-      │
- ┌───────────────┬───────────────┬───────────────┐
- ▼               ▼               ▼
-Employee     Attendance     Salary Module
-Management   Management     (HRA/DA/PF)
-     │             │               │
-     ▼             ▼               ▼
-Employee DB   Attendance DB   Payroll Records
-      │
-      ▼
- Pay Slip Output
-🛠️ Tech Stack
-💻 Frontend & Application Logic
-Java (Swing / AWT GUI)
-Core Java (OOP concepts)
-🗄️ Database
-MySQL
-JDBC (Java Database Connectivity)
-🧰 Tools & IDEs
-IntelliJ IDEA / Eclipse / NetBeans
-MySQL Workbench
-MySQL Connector/J
-📋 Prerequisites
-
-Before running the project, make sure you have:
-
-JDK 8 or higher installed
-MySQL Server installed
-MySQL Workbench
-MySQL Connector/J (JDBC Driver)
-⚙️ Installation & Setup
-1️⃣ Create Database
-
-Open MySQL Workbench and run:
-
-CREATE DATABASE payroll_db;
-
-Then create required tables:
-
-Employee
-Login
-Attendance
-Salary
-2️⃣ Clone Repository
-git clone https://github.com/your-username/PayrollManagementSystems.git
-3️⃣ Add JDBC Driver
-Download MySQL Connector/J
-Add .jar file to project build path
-4️⃣ Configure Database Connection
-
-Update your Conn.java file:
-
-connection = DriverManager.getConnection(
-    "jdbc:mysql:///payroll_db",
-    "root",
-    "YOUR_PASSWORD"
-);
-🖥️ How to Run
-Run:
-Splash.java or Login.java
-Sign Up (if new user)
-Login to access dashboard
-Use the system to:
-Manage employees
-Track attendance
-Calculate payroll
-Generate salary slips
-🎯 Why This Project Stands Out
-
-This project demonstrates strong real-world software engineering skills:
-
-✔ Desktop application development using Java
-✔ Full CRUD operations with MySQL
-✔ Secure authentication implementation
-✔ Real-world payroll business logic
-✔ Clean separation of UI, logic, and database layers
-✔ Strong understanding of JDBC integration
-
-📊 Project Highlights
-End-to-end payroll workflow
-Real-world HR use case implementation
-Scalable and maintainable architecture
-Beginner-to-intermediate full-stack Java project
-📌 Future Enhancements
-Role-based access control (Admin/HR/User)
-Export payslip as PDF
-REST API integration
-Web-based version (Spring Boot + React)
-Reporting dashboard with charts
-⭐ Support
-
-If you like this project:
-
-⭐ Star the repository
-🍴 Fork it
-🛠️ Contribute
-📄 License
-
-This project is open-source and available under the MIT License.
-
-🚀 Final Note
-
-This project is ideal for:
-
-💼 Portfolio showcase
-🧪 QA Automation practice
-👨‍💻 Java + Database learning
-🎯 Interview preparation
+## License
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
