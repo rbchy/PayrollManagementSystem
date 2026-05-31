@@ -332,7 +332,7 @@ If you found this project helpful:
 ## Author
 
 **Ranajit Baran Chowdhury**  
-Software QA Engineer | Automation & Manual Testing  
+Software Programmer & QA Engineer | Automation & Manual Testing  
 🔗 [GitHub](https://github.com/rbchy)
 
 ---
