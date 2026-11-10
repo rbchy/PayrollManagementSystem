@@ -7,234 +7,259 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.LocalDate;
-import java.util.Vector; // কম্বো বক্সের ডেটা এর জন্য
 
 public class UpdateEmployeeTab extends JPanel {
 
+    /**
+     * SQL used by "Update Employee". Column names must match db/setup_payroll_db.sql.
+     *
+     * QA FIX: the previous statement used bankname, accountno, holiday_paid_hours and
+     * special_work_hours, none of which exist (the columns are bank_name, account_no,
+     * holidaypaid_hours, specialwork_hours), so EVERY update failed with
+     * "Unknown column". It also never refreshed salary / overtime_amount /
+     * doubletime_amount / extended_amount / holidaypaid_amount / specialwork_amount.
+     * Verified against a real MySQL schema by EmployeeSqlIntegrationTest.
+     */
+    public static final String UPDATE_SQL =
+            "UPDATE employees SET first_name=?, last_name=?, designation=?, department=?, email_id=?, " +
+            "contact_no=?, hire_date=?, pay_rate_hourly=?, active=?, Total_hours=?, overtime_hours=?, " +
+            "doubletime_hours=?, pay_date=?, ssn=?, customer=?, bank_name=?, account_no=?, extended_hours=?, " +
+            "holidaypaid_hours=?, specialwork_hours=?, " +
+            "gross_salary=?, tax_deduction=?, medical_insurance=?, total_deductions=?, net_salary=?, bonus_amount=?, " +
+            "salary=?, overtime_amount=?, doubletime_amount=?, extended_amount=?, holidaypaid_amount=?, specialwork_amount=? " +
+            "WHERE employee_id=?";
+
+    /** SQL used to load an employee into the Update form. */
+    public static final String LOAD_SQL =
+            "SELECT first_name, last_name, designation, department, email_id, contact_no, hire_date, " +
+            "pay_rate_hourly, active, Total_hours, overtime_hours, doubletime_hours, salary, pay_date, ssn, " +
+            "customer, bank_name, account_no, extended_hours, holidaypaid_hours, specialwork_hours, bonus_amount " +
+            "FROM employees WHERE employee_id = ?";
+
+
     private static final long serialVersionUID = 1L;
 
-    private JTextField txtEmployeeId, txtFirstName, txtLastName,
-                         txtEmail, txtContactNo, txtPayRateHourly, txtHireDate, txtTotalHours, txtSalary,
-                         txtOvertimeHours, txtDoubletimeHours, txtPayDate,
-                         txtSsn, txtCustomer, txtBankName, txtAccountNo,
-                         txtExtendedHours, txtHolidayPaidHours, txtSpecialWorkHours,
-                         txtCalculation; // নতুন ফিল্ড: Calculation
+    // ===============================================
+    // CONSTANTS
+    // ===============================================
+    private static final String DATE_FORMAT = "yyyy-MM-dd";
 
-    private JComboBox<String> cmbActive, cmbDepartment, cmbDesignation; // Department ও Designation এর জন্য JComboBox
-    private JLabel lblStatus;
-    private JButton btnUpdate, btnClear, btnLoad, btnCalculate; // Calculate বাটন যোগ করা হয়েছে
-
-    // Date format for display and input
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-    // বিভাগ ও পদবীগুলির জন্য ডামি ডেটা (আপনি DB থেকে লোড করতে পারেন)
     private static final String[] DEPARTMENTS = {"HR", "IT", "Finance", "Sales", "Marketing", "Operations"};
     private static final String[] DESIGNATIONS = {"Manager", "Senior Developer", "Junior Developer", "Analyst", "Clerk"};
 
+    // ===============================================
+    // UI COMPONENTS
+    // ===============================================
+    private JTextField txtEmployeeId, txtFirstName, txtLastName, txtEmail, txtContactNo;
+    private JTextField txtPayRateHourly, txtHireDate, txtTotalHours, txtSalary;
+    private JTextField txtOvertimeHours, txtDoubletimeHours, txtPayDate;
+    private JTextField txtSsn, txtCustomer, txtBankName, txtAccountNo;
+    private JTextField txtExtendedHours, txtHolidayPaidHours, txtSpecialWorkHours;
+    private JTextField txtBonusAmount;
+    private JTextField txtCalculation;
+
+    // QA FIX: new read-only output fields so the calculated breakdown
+    // (gross / tax / medical / total deductions / net) is visible BEFORE
+    // saving, exactly like AddEmployeeTab.
+    private JTextField txtGrossSalary, txtTaxDeduction, txtMedicalInsurance, txtTotalDeductions, txtNetSalary;
+
+    private JComboBox<String> cmbActive, cmbDepartment, cmbDesignation;
+    private JLabel lblStatus;
+    private JButton btnUpdate, btnClear, btnLoad, btnCalculate;
 
     public UpdateEmployeeTab() {
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        setLayout(new BorderLayout());
 
-        // --- Title ---
-        JLabel lblTitle = new JLabel("UPDATE EMPLOYEE FULL PROFILE", SwingConstants.CENTER);
-        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        JLabel lblTitle = new JLabel("UPDATE EMPLOYEE PAYROLL DATA", SwingConstants.CENTER);
+        lblTitle.setOpaque(true);
+        lblTitle.setBackground(new Color(0, 102, 255));
+        lblTitle.setForeground(Color.WHITE);
+        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 20));
         add(lblTitle, BorderLayout.NORTH);
 
-        // --- Form Panel (Center) ---
-        // 4 কলাম ব্যবহার করে লেআউট
         JPanel form = new JPanel(new GridLayout(0, 4, 10, 10));
+        form.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-        // Row 1: Employee ID & Load Button
+        // Row: Employee ID + Load button
+        txtEmployeeId = new JTextField();
+        btnLoad = new JButton("Load Employee");
         form.add(new JLabel("Employee ID:"));
-        txtEmployeeId = new JTextField(10);
         form.add(txtEmployeeId);
+        form.add(btnLoad);
+        form.add(new JLabel(""));
 
-        btnLoad = new JButton("Load Employee Data");
-
-        JPanel loadPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        loadPanel.add(btnLoad);
-        form.add(new JLabel("")); // Spacer
-        form.add(loadPanel);
-
-        // Row 2: First Name / Last Name
+        // Row: First/Last Name
+        txtFirstName = new JTextField();
+        txtLastName = new JTextField();
         form.add(new JLabel("First Name:"));
-        txtFirstName = new JTextField(10);
         form.add(txtFirstName);
-
         form.add(new JLabel("Last Name:"));
-        txtLastName = new JTextField(10);
         form.add(txtLastName);
 
-        // Row 3: Department (ComboBox) / Designation (ComboBox)
-        form.add(new JLabel("Department:"));
+        // Row: Department / Designation
         cmbDepartment = new JComboBox<>(DEPARTMENTS);
-        form.add(cmbDepartment);
-
-        form.add(new JLabel("Designation:"));
         cmbDesignation = new JComboBox<>(DESIGNATIONS);
+        form.add(new JLabel("Department:"));
+        form.add(cmbDepartment);
+        form.add(new JLabel("Designation:"));
         form.add(cmbDesignation);
 
-        // Row 4: SSN (NEW) / Customer (NEW)
+        // Row: SSN / Customer
+        txtSsn = new JTextField();
+        txtCustomer = new JTextField();
         form.add(new JLabel("SSN:"));
-        txtSsn = new JTextField(10);
         form.add(txtSsn);
-
         form.add(new JLabel("Customer:"));
-        txtCustomer = new JTextField(10);
         form.add(txtCustomer);
 
-        // Row 5: Bank Name (NEW) / Account No (NEW)
+        // Row: Bank Name / Account No
+        txtBankName = new JTextField();
+        txtAccountNo = new JTextField();
         form.add(new JLabel("Bank Name:"));
-        txtBankName = new JTextField(10);
         form.add(txtBankName);
-
         form.add(new JLabel("Account No:"));
-        txtAccountNo = new JTextField(10);
         form.add(txtAccountNo);
-        
-        // Row 6: Contact / Email
-        form.add(new JLabel("Contact No:"));
-        txtContactNo = new JTextField(10);
-        form.add(txtContactNo);
 
+        // Row: Contact / Email
+        txtContactNo = new JTextField();
+        txtEmail = new JTextField();
+        form.add(new JLabel("Contact No:"));
+        form.add(txtContactNo);
         form.add(new JLabel("Email:"));
-        txtEmail = new JTextField(10);
         form.add(txtEmail);
 
-        // Row 7: Hire Date / Pay Rate
-        form.add(new JLabel("Hire Date (YYYY-MM-DD):"));
-        txtHireDate = new JTextField(10);
+        // Row: Hire Date / Pay Rate
+        txtHireDate = new JTextField();
+        txtPayRateHourly = new JTextField();
+        form.add(new JLabel("Hire Date (yyyy-MM-dd):"));
         form.add(txtHireDate);
-
-        form.add(new JLabel("Hourly Pay Rate:"));
-        txtPayRateHourly = new JTextField(10);
+        form.add(new JLabel("Pay Rate (hourly):"));
         form.add(txtPayRateHourly);
 
-        // Row 8: Active Status / Total Hours
-        form.add(new JLabel("Active Status:"));
-        cmbActive = new JComboBox<>(new String[]{"Active (1)", "Inactive (0)"});
+        // Row: Active Status / Total Hours
+        cmbActive = new JComboBox<>(new String[]{"1", "0"});
+        txtTotalHours = new JTextField();
+        form.add(new JLabel("Active (1=Yes, 0=No):"));
         form.add(cmbActive);
-
         form.add(new JLabel("Total Hours:"));
-        txtTotalHours = new JTextField(10);
         form.add(txtTotalHours);
 
-        // Row 9: Overtime Hours / Doubletime Hours
-        form.add(new JLabel("Overtime Hours (1.5x):"));
-        txtOvertimeHours = new JTextField(10);
+        // Row: Overtime / Doubletime Hours
+        txtOvertimeHours = new JTextField();
+        txtDoubletimeHours = new JTextField();
+        form.add(new JLabel("Overtime Hours:"));
         form.add(txtOvertimeHours);
-
-        form.add(new JLabel("Doubletime Hours (2x):"));
-        txtDoubletimeHours = new JTextField(10);
+        form.add(new JLabel("Doubletime Hours:"));
         form.add(txtDoubletimeHours);
-        
-        // Row 10: Extended Hours (NEW) / Holiday Paid Hours (NEW)
-        form.add(new JLabel("Extended Hours (1.5x):"));
-        txtExtendedHours = new JTextField(10);
-        form.add(txtExtendedHours);
 
-        form.add(new JLabel("Holiday Paid Hours (1.00x):"));
-        txtHolidayPaidHours = new JTextField(10);
+        // Row: Extended / Holiday Paid Hours
+        txtExtendedHours = new JTextField();
+        txtHolidayPaidHours = new JTextField();
+        form.add(new JLabel("Extended Hours:"));
+        form.add(txtExtendedHours);
+        form.add(new JLabel("Holiday Paid Hours:"));
         form.add(txtHolidayPaidHours);
 
-        // Row 11: Special Work Hours (NEW) / Pay Date
-        form.add(new JLabel("Special Work Hours (3*hours):"));
-        txtSpecialWorkHours = new JTextField(10);
+        // Row: Special Work Hours / Pay Date
+        txtSpecialWorkHours = new JTextField();
+        txtPayDate = new JTextField();
+        form.add(new JLabel("Special Work Hours:"));
         form.add(txtSpecialWorkHours);
-
-        form.add(new JLabel("Pay Date (YYYY-MM-DD):"));
-        txtPayDate = new JTextField(10);
+        form.add(new JLabel("Pay Date (yyyy-MM-dd):"));
         form.add(txtPayDate);
 
-        // Row 12: Salary / Calculation Field (NEW)
-        form.add(new JLabel("Salary (DB View Only):"));
-        txtSalary = new JTextField(10);
-        txtSalary.setEditable(false);
-        form.add(txtSalary);
+        // QA NEW ROW: Bonus Amount (was missing entirely - needed so
+        // PayrollCalculator.calculate(...) has a bonus value to work with,
+        // and so bonus_amount can be persisted on update).
+        txtBonusAmount = new JTextField();
+        form.add(new JLabel("Bonus Amount:"));
+        form.add(txtBonusAmount);
+        form.add(new JLabel(""));
+        form.add(new JLabel(""));
 
-        form.add(new JLabel("Calculated Pay:"));
-        txtCalculation = new JTextField(10);
+        // Row: Salary (view-only) / Calculated Pay (Net Salary summary)
+        txtSalary = new JTextField();
+        txtSalary.setEditable(false);
+        txtCalculation = new JTextField();
         txtCalculation.setEditable(false);
+        form.add(new JLabel("Salary (Normal, view-only):"));
+        form.add(txtSalary);
+        form.add(new JLabel("Net Salary (Calculated):"));
         form.add(txtCalculation);
 
+        // QA NEW ROWS: full breakdown, mirroring AddEmployeeTab so the user
+        // can verify gross/tax/medical/total-deductions/net before saving.
+        txtGrossSalary = new JTextField();
+        txtGrossSalary.setEditable(false);
+        txtTaxDeduction = new JTextField();
+        txtTaxDeduction.setEditable(false);
+        form.add(new JLabel("Gross Salary:"));
+        form.add(txtGrossSalary);
+        form.add(new JLabel(String.format("Tax Deduction (%.0f%%):", PayrollCalculator.TAX_PERCENTAGE * 100)));
+        form.add(txtTaxDeduction);
 
-        // --- Bottom Panel ---
-        JPanel southPanel = new JPanel(new BorderLayout());
+        txtMedicalInsurance = new JTextField();
+        txtMedicalInsurance.setEditable(false);
+        txtTotalDeductions = new JTextField();
+        txtTotalDeductions.setEditable(false);
+        form.add(new JLabel(String.format("Medical Insurance (%.0f%%):", PayrollCalculator.MEDICAL_PERCENTAGE * 100)));
+        form.add(txtMedicalInsurance);
+        form.add(new JLabel("Total Deductions:"));
+        form.add(txtTotalDeductions);
 
-        lblStatus = new JLabel("Status: Ready", SwingConstants.CENTER);
-        lblStatus.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        southPanel.add(lblStatus, BorderLayout.NORTH);
+        txtNetSalary = new JTextField();
+        txtNetSalary.setEditable(false);
+        form.add(new JLabel("Net Salary:"));
+        form.add(txtNetSalary);
+        form.add(new JLabel(""));
+        form.add(new JLabel(""));
 
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
-        btnUpdate = new JButton("Update Employee Record");
-        btnClear = new JButton("Clear Fields");
-        btnCalculate = new JButton("Calculate Pay"); // Calculate বাটন
-
-        buttonPanel.add(btnUpdate);
-        buttonPanel.add(btnCalculate); // Calculate বাটন যোগ
-        buttonPanel.add(btnClear);
-        southPanel.add(buttonPanel, BorderLayout.CENTER);
-
-        // --- Layout Assembly ---
         add(form, BorderLayout.CENTER);
-        add(southPanel, BorderLayout.SOUTH);
 
-        // --- Actions ---
+        // --- Bottom panel ---
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+        btnCalculate = new JButton("Calculate Salary");
+        btnUpdate = new JButton("Update Employee");
+        btnClear = new JButton("Clear");
+        lblStatus = new JLabel("Enter Employee ID and click 'Load Employee'.", SwingConstants.CENTER);
+
+        bottomPanel.add(btnCalculate);
+        bottomPanel.add(btnUpdate);
+        bottomPanel.add(btnClear);
+        bottomPanel.add(lblStatus);
+        add(bottomPanel, BorderLayout.SOUTH);
+
+        // --- Listeners ---
         btnLoad.addActionListener(e -> fetchEmployeeDetails(txtEmployeeId.getText().trim()));
+        btnCalculate.addActionListener(e -> calculateAndDisplayPay());
         btnUpdate.addActionListener(e -> updateEmployee());
         btnClear.addActionListener(e -> clearFields());
-        btnCalculate.addActionListener(e -> calculateAndDisplayPay());
 
         setFieldsEditable(false);
     }
 
-    // ===============================================
-    // PUBLIC ACCESS METHOD FOR PayrollTabbedGUI
-    // ===============================================
-
+    /**
+     * Called from the employee list/table to pre-fill the form for editing.
+     */
     public void loadSelectedRow(DefaultTableModel model, int row) {
-        try {
-            String id = model.getValueAt(row, 0).toString();
-            txtEmployeeId.setText(id);
-            fetchEmployeeDetails(id);
-            txtEmployeeId.setEditable(false);
-
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error loading row data from table: " + e.getMessage(),
-                                          "Data Load Error", JOptionPane.ERROR_MESSAGE);
-            lblStatus.setText("Status: Error loading row data.");
-            lblStatus.setForeground(Color.RED);
-            clearFields();
+        Object idVal = model.getValueAt(row, 0);
+        if (idVal != null) {
+            txtEmployeeId.setText(idVal.toString());
+            fetchEmployeeDetails(idVal.toString());
         }
     }
-
-    // ===============================================
-    // INTERNAL LOGIC METHODS
-    // ===============================================
 
     private void setFieldsEditable(boolean editable) {
         txtFirstName.setEditable(editable);
         txtLastName.setEditable(editable);
-        // txtDesignation.setEditable(editable); // কম্বো বক্স
-        // txtDepartment.setEditable(editable); // কম্বো বক্স
-        cmbDesignation.setEnabled(editable);
-        cmbDepartment.setEnabled(editable);
-
         txtEmail.setEditable(editable);
         txtContactNo.setEditable(editable);
         txtPayRateHourly.setEditable(editable);
         txtHireDate.setEditable(editable);
         txtTotalHours.setEditable(editable);
-
         txtOvertimeHours.setEditable(editable);
         txtDoubletimeHours.setEditable(editable);
         txtPayDate.setEditable(editable);
-
-        // নতুন ফিল্ড
         txtSsn.setEditable(editable);
         txtCustomer.setEditable(editable);
         txtBankName.setEditable(editable);
@@ -242,255 +267,311 @@ public class UpdateEmployeeTab extends JPanel {
         txtExtendedHours.setEditable(editable);
         txtHolidayPaidHours.setEditable(editable);
         txtSpecialWorkHours.setEditable(editable);
+        txtBonusAmount.setEditable(editable);
 
-
-        // txtSalary, txtCalculation display-only
         cmbActive.setEnabled(editable);
+        cmbDepartment.setEnabled(editable);
+        cmbDesignation.setEnabled(editable);
+
         btnUpdate.setEnabled(editable);
-        btnCalculate.setEnabled(editable); // Calculate বাটনকেও এনাবেল/ডিসএবেল করা
+        btnCalculate.setEnabled(editable);
     }
 
-
     /**
-     * Loads ALL employee details from the database.
+     * Loads an employee's full record from the database into the form.
      */
-    public void fetchEmployeeDetails(String id) {
-        if (id.isEmpty()) {
-            lblStatus.setText("Status: Please enter an Employee ID to load.");
+    private void fetchEmployeeDetails(String employeeIdStr) {
+        if (employeeIdStr.isEmpty()) {
+            lblStatus.setText("❌ Error: Please enter an Employee ID to load.");
             lblStatus.setForeground(Color.RED);
-            setFieldsEditable(false);
             return;
         }
 
-        clearFields();
-        txtEmployeeId.setText(id);
-        setFieldsEditable(false);
+        int employeeId;
+        try {
+            employeeId = Integer.parseInt(employeeIdStr);
+        } catch (NumberFormatException e) {
+            lblStatus.setText("❌ Error: Employee ID must be a number.");
+            lblStatus.setForeground(Color.RED);
+            return;
+        }
 
-        // SQL query update to include all new fields: ssn, customer, bankname, accountno, extended_hours, holiday_paid_hours, special_work_hours
-        String sql = "SELECT first_name, last_name, designation, department, email_id, contact_no, hire_date, pay_rate_hourly, active, Total_hours, overtime_hours, doubletime_hours, salary, pay_date, ssn, customer, bank_name, account_no, extended_hours, holidaypaid_hours, specialwork_hours FROM employees WHERE employee_id = ?";
+        String sql = LOAD_SQL;
 
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setInt(1, Integer.parseInt(id));
+            ps.setInt(1, employeeId);
+
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     txtFirstName.setText(rs.getString("first_name"));
                     txtLastName.setText(rs.getString("last_name"));
-
-                    // কম্বো বক্স সেট করা
                     cmbDesignation.setSelectedItem(rs.getString("designation"));
                     cmbDepartment.setSelectedItem(rs.getString("department"));
-
                     txtEmail.setText(rs.getString("email_id"));
                     txtContactNo.setText(rs.getString("contact_no"));
 
-                    txtHireDate.setText(rs.getDate("hire_date") != null ? rs.getDate("hire_date").toString() : "");
-                    txtPayRateHourly.setText(String.format("%.2f", rs.getDouble("pay_rate_hourly")));
+                    java.sql.Date hireDate = rs.getDate("hire_date");
+                    txtHireDate.setText(hireDate != null ? hireDate.toString() : "");
 
-                    // Payroll Fields
-                    txtTotalHours.setText(String.format("%.2f", rs.getDouble("Total_hours")));
-                    txtOvertimeHours.setText(String.format("%.2f", rs.getDouble("overtime_hours")));
-                    txtDoubletimeHours.setText(String.format("%.2f", rs.getDouble("doubletime_hours")));
-                    txtSalary.setText(String.format("%.2f", rs.getDouble("salary"))); // DB থেকে প্রাপ্ত বেতন
-                    txtPayDate.setText(rs.getDate("pay_date") != null ? rs.getDate("pay_date").toString() : "");
+                    txtPayRateHourly.setText(String.valueOf(rs.getDouble("pay_rate_hourly")));
+                    cmbActive.setSelectedItem(String.valueOf(rs.getInt("active")));
+                    txtTotalHours.setText(String.valueOf(rs.getDouble("Total_hours")));
+                    txtOvertimeHours.setText(String.valueOf(rs.getDouble("overtime_hours")));
+                    txtDoubletimeHours.setText(String.valueOf(rs.getDouble("doubletime_hours")));
+                    txtSalary.setText(String.valueOf(rs.getDouble("salary")));
 
-                    // NEW FIELDS
+                    java.sql.Date payDate = rs.getDate("pay_date");
+                    txtPayDate.setText(payDate != null ? payDate.toString() : "");
+
                     txtSsn.setText(rs.getString("ssn"));
                     txtCustomer.setText(rs.getString("customer"));
                     txtBankName.setText(rs.getString("bank_name"));
                     txtAccountNo.setText(rs.getString("account_no"));
-                    txtExtendedHours.setText(String.format("%.2f", rs.getDouble("extended_hours")));
-                    txtHolidayPaidHours.setText(String.format("%.2f", rs.getDouble("holidaypaid_hours")));
-                    txtSpecialWorkHours.setText(String.format("%.2f", rs.getDouble("specialwork_hours")));
-                    // প্রাথমিক গণনার ক্ষেত্রটি লোড হওয়ার সাথে সাথেই গণনা করুন
-                    calculateAndDisplayPay(); 
+                    txtExtendedHours.setText(String.valueOf(rs.getDouble("extended_hours")));
+                    txtHolidayPaidHours.setText(String.valueOf(rs.getDouble("holidaypaid_hours")));
+                    txtSpecialWorkHours.setText(String.valueOf(rs.getDouble("specialwork_hours")));
+                    txtBonusAmount.setText(String.valueOf(rs.getDouble("bonus_amount")));
 
-                    int activeStatus = rs.getInt("active");
-                    cmbActive.setSelectedIndex(activeStatus == 1 ? 0 : 1);
-
-                    lblStatus.setText("Status: Employee " + id + " loaded successfully. Edit fields and press Update.");
-                    lblStatus.setForeground(new Color(0, 128, 0));
                     setFieldsEditable(true);
-                    txtEmployeeId.setEditable(false);
+                    lblStatus.setText("✅ Employee #" + employeeId + " loaded. You may now edit and Update.");
+                    lblStatus.setForeground(new Color(0, 128, 0));
+
+                    // Show the previously calculated breakdown immediately.
+                    calculateAndDisplayPay();
                 } else {
-                    lblStatus.setText("Status: Employee ID " + id + " not found.");
-                    lblStatus.setForeground(Color.ORANGE);
-                    txtEmployeeId.setEditable(true);
+                    setFieldsEditable(false);
+                    lblStatus.setText("❌ Error: Employee ID " + employeeId + " not found.");
+                    lblStatus.setForeground(Color.RED);
                 }
             }
-        } catch (NumberFormatException e) {
-            lblStatus.setText("Status: Employee ID must be a valid integer.");
-            lblStatus.setForeground(Color.RED);
-            txtEmployeeId.setEditable(true);
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Database Error fetching employee: " + ex.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
-            lblStatus.setText("Status: Database Error fetching employee: " + ex.getMessage());
+            lblStatus.setText("❌ Database Error: " + ex.getMessage());
             lblStatus.setForeground(Color.RED);
+            ex.printStackTrace();
         }
     }
 
+    /** Parses a numeric field, treating blank as 0 instead of throwing. */
+    private double parseOrZero(JTextField field) {
+        String text = field.getText().trim();
+        return text.isEmpty() ? 0.0 : Double.parseDouble(text);
+    }
 
+    /**
+     * Calculates Gross/Tax/Medical/Total Deductions/Net Salary.
+     *
+     * QA FIX (Bug #1): this method previously had its OWN, inconsistent
+     * formula (no 40-hr cap on normal hours, extended hours at 1.5x instead
+     * of 1.0x, special work hours at a flat 3.0 instead of payRate*1.0, and
+     * NO tax/medical/net calculation at all). It now delegates to
+     * PayrollCalculator.calculate(...) - the SAME method used by
+     * AddEmployeeTab - so results are guaranteed identical regardless of
+     * which screen is used.
+     *
+     * QA FIX: empty hour fields now default to 0 (parseOrZero) instead of
+     * throwing NumberFormatException, matching AddEmployeeTab's behaviour.
+     */
     private void calculateAndDisplayPay() {
         try {
             double payRate = Double.parseDouble(txtPayRateHourly.getText().trim());
-            double totalHours = Double.parseDouble(txtTotalHours.getText().trim());
-            double overtimeHours = Double.parseDouble(txtOvertimeHours.getText().trim());
-            double doubletimeHours = Double.parseDouble(txtDoubletimeHours.getText().trim());
-            double extendedHours = Double.parseDouble(txtExtendedHours.getText().trim());
-            double holidayPaidHours = Double.parseDouble(txtHolidayPaidHours.getText().trim());
-            double specialWorkHours = Double.parseDouble(txtSpecialWorkHours.getText().trim());
+            double totalHours = parseOrZero(txtTotalHours);
+            double overtimeHours = parseOrZero(txtOvertimeHours);
+            double doubletimeHours = parseOrZero(txtDoubletimeHours);
+            double extendedHours = parseOrZero(txtExtendedHours);
+            double holidayPaidHours = parseOrZero(txtHolidayPaidHours);
+            double specialWorkHours = parseOrZero(txtSpecialWorkHours);
+            double bonusAmount = parseOrZero(txtBonusAmount);
 
-            // বেতনের গণনা
-            // সাধারণ ঘন্টা (Standard Pay) = মোট ঘন্টা * Hourly Rate
-            // ওভারটাইম (Overtime) = Overtime Hours * Hourly Rate * 1.5
-            // ডাবলটাইম (Doubletime) = Doubletime Hours * Hourly Rate * 2.0
-            // এক্সটেন্ডেড আওয়ার্স (Extended Hours) = Extended Hours * Hourly Rate * 1.25
-            // হলিডে পেইড আওয়ার্স (Holiday Paid Hours) = Holiday Paid Hours * Hourly Rate * 2.5
-            // স্পেশাল ওয়ার্ক আওয়ার্স (Special Work Hours) = Special Work Hours * Hourly Rate * 3.0
+            PayrollCalculator.PayResult result = PayrollCalculator.calculate(
+                    payRate, totalHours, overtimeHours, doubletimeHours,
+                    extendedHours, holidayPaidHours, specialWorkHours, bonusAmount);
 
-            double standardPay = (totalHours-holidayPaidHours) * payRate;
-            double overtimePay = overtimeHours * payRate * 1.5;
-            double doubletimePay = doubletimeHours * payRate * 2.0;
-            double extendedPay = extendedHours * payRate * 1.5;
-            double holidayPay = holidayPaidHours * payRate;
-            double specialPay = specialWorkHours * 3.0;
+            txtSalary.setText(String.format("%.2f", result.normalSalary));
+            txtGrossSalary.setText(String.format("%.2f", result.grossSalary));
+            txtTaxDeduction.setText(String.format("%.2f", result.taxDeduction));
+            txtMedicalInsurance.setText(String.format("%.2f", result.medicalInsurance));
+            txtTotalDeductions.setText(String.format("%.2f", result.totalDeductions));
+            txtNetSalary.setText(String.format("%.2f", result.netSalary));
+            txtCalculation.setText(String.format("%.2f", result.netSalary));
 
-            double calculatedPay = standardPay + overtimePay + doubletimePay + extendedPay + holidayPay + specialPay;
-
-            txtCalculation.setText(String.format("%.2f", calculatedPay));
-            lblStatus.setText("Status: Calculated Pay: $" + String.format("%.2f", calculatedPay));
+            lblStatus.setText("Salary recalculated. Review and click 'Update Employee' to save.");
             lblStatus.setForeground(Color.BLUE);
 
         } catch (NumberFormatException e) {
             txtCalculation.setText("Error");
-            lblStatus.setText("Status: Calculation Error! Check if Pay Rate/Hours fields are valid numbers.");
+            lblStatus.setText("❌ Error: Pay Rate, Bonus, and all Hour fields must contain valid numbers.");
+            lblStatus.setForeground(Color.RED);
+        } catch (IllegalArgumentException e) {
+            // QA FIX (Bug #2): negative inputs are now rejected here too.
+            txtCalculation.setText("Error");
+            lblStatus.setText("❌ Error: " + e.getMessage());
             lblStatus.setForeground(Color.RED);
         }
     }
 
+    /**
+     * Persists the edited employee record back to the database.
+     *
+     * QA FIX (Bug #1): the UPDATE statement now also writes
+     * gross_salary, tax_deduction, medical_insurance, total_deductions,
+     * net_salary and bonus_amount - previously these were left stale
+     * (still containing the values from when the record was first added),
+     * even though the on-screen "Calculated Pay" had changed.
+     */
     private void updateEmployee() {
-        String idStr = txtEmployeeId.getText();
-
-        if (idStr.isEmpty() || !btnUpdate.isEnabled()) {
-            lblStatus.setText("Status: Please load employee data first!");
+        String employeeIdStr = txtEmployeeId.getText().trim();
+        if (employeeIdStr.isEmpty()) {
+            lblStatus.setText("❌ Error: No employee loaded.");
             lblStatus.setForeground(Color.RED);
             return;
         }
 
-        // --- Input Validation ---
-        double payRate, totalHours, overtimeHours, doubletimeHours, extendedHours, holidayPaidHours, specialWorkHours;
-
-        try { payRate = Double.parseDouble(txtPayRateHourly.getText().trim()); }
-        catch (NumberFormatException e) { lblStatus.setText("Status: Pay Rate must be a valid number."); lblStatus.setForeground(Color.RED); return; }
-
-        try { totalHours = Double.parseDouble(txtTotalHours.getText().trim()); }
-        catch (NumberFormatException e) { lblStatus.setText("Status: Total Hours must be a valid number."); lblStatus.setForeground(Color.RED); return; }
-
-        try { overtimeHours = Double.parseDouble(txtOvertimeHours.getText().trim()); }
-        catch (NumberFormatException e) { lblStatus.setText("Status: Overtime Hours must be a valid number."); lblStatus.setForeground(Color.RED); return; }
-
-        try { doubletimeHours = Double.parseDouble(txtDoubletimeHours.getText().trim()); }
-        catch (NumberFormatException e) { lblStatus.setText("Status: Doubletime Hours must be a valid number."); lblStatus.setForeground(Color.RED); return; }
-
-        try { extendedHours = Double.parseDouble(txtExtendedHours.getText().trim()); }
-        catch (NumberFormatException e) { lblStatus.setText("Status: Extended Hours must be a valid number."); lblStatus.setForeground(Color.RED); return; }
-
-        try { holidayPaidHours = Double.parseDouble(txtHolidayPaidHours.getText().trim()); }
-        catch (NumberFormatException e) { lblStatus.setText("Status: Holiday Paid Hours must be a valid number."); lblStatus.setForeground(Color.RED); return; }
-
-        try { specialWorkHours = Double.parseDouble(txtSpecialWorkHours.getText().trim()); }
-        catch (NumberFormatException e) { lblStatus.setText("Status: Special Work Hours must be a valid number."); lblStatus.setForeground(Color.RED); return; }
-
-
-        String hireDateStr = txtHireDate.getText().trim();
-        String payDateStr = txtPayDate.getText().trim();
-
+        int employeeId;
+        double payRate, totalHours, overtimeHours, doubletimeHours, extendedHours, holidayPaidHours, specialWorkHours, bonusAmount;
         try {
-            if (!hireDateStr.isEmpty()) LocalDate.parse(hireDateStr, DATE_FORMAT);
-        } catch (DateTimeParseException e) {
-            lblStatus.setText("Status: Hire Date must be in YYYY-MM-DD format.");
+            employeeId = Integer.parseInt(employeeIdStr);
+            payRate = Double.parseDouble(txtPayRateHourly.getText().trim());
+            totalHours = parseOrZero(txtTotalHours);
+            overtimeHours = parseOrZero(txtOvertimeHours);
+            doubletimeHours = parseOrZero(txtDoubletimeHours);
+            extendedHours = parseOrZero(txtExtendedHours);
+            holidayPaidHours = parseOrZero(txtHolidayPaidHours);
+            specialWorkHours = parseOrZero(txtSpecialWorkHours);
+            bonusAmount = parseOrZero(txtBonusAmount);
+        } catch (NumberFormatException e) {
+            lblStatus.setText("❌ Error: ID, Pay Rate, Bonus, and all Hour fields must be valid numbers.");
             lblStatus.setForeground(Color.RED);
             return;
         }
 
+        // QA FIX (Bug #1 & #2): always recompute via PayrollCalculator right
+        // before saving, so the persisted financial columns are guaranteed
+        // consistent with the entered hours/rate (and negative values are
+        // rejected) even if the user forgot to press "Calculate Salary".
+        PayrollCalculator.PayResult result;
         try {
-            if (!payDateStr.isEmpty()) LocalDate.parse(payDateStr, DATE_FORMAT);
-        } catch (DateTimeParseException e) {
-            lblStatus.setText("Status: Pay Date must be in YYYY-MM-DD format.");
+            result = PayrollCalculator.calculate(payRate, totalHours, overtimeHours, doubletimeHours,
+                    extendedHours, holidayPaidHours, specialWorkHours, bonusAmount);
+        } catch (IllegalArgumentException e) {
+            lblStatus.setText("❌ Error: " + e.getMessage());
             lblStatus.setForeground(Color.RED);
             return;
         }
 
-        int activeStatus = cmbActive.getSelectedIndex() == 0 ? 1 : 0;
+        String firstName = txtFirstName.getText().trim();
+        String lastName = txtLastName.getText().trim();
+        String designation = (String) cmbDesignation.getSelectedItem();
+        String department = (String) cmbDepartment.getSelectedItem();
+        String email = txtEmail.getText().trim();
+        String contactNo = txtContactNo.getText().trim();
+        String hireDate = txtHireDate.getText().trim();
+        int active = Integer.parseInt((String) cmbActive.getSelectedItem());
+        String payDate = txtPayDate.getText().trim();
+        String ssn = txtSsn.getText().trim();
+        String customer = txtCustomer.getText().trim();
+        String bankName = txtBankName.getText().trim();
+        String accountNo = txtAccountNo.getText().trim();
 
-        // DB-তে সংরক্ষণের জন্য কম্বো বক্সের মান
-        String department = cmbDepartment.getSelectedItem().toString();
-        String designation = cmbDesignation.getSelectedItem().toString();
+        if (firstName.isEmpty() || lastName.isEmpty() || email.isEmpty() || contactNo.isEmpty()
+                || hireDate.isEmpty() || payDate.isEmpty()) {
+            lblStatus.setText("❌ Error: Please fill all required fields.");
+            lblStatus.setForeground(Color.RED);
+            return;
+        }
 
-        // --- SQL UPDATE Query (সমস্ত নতুন এবং পরিবর্তিত ফিল্ড সহ আপডেট করা হয়েছে) ---
-        String sql = "UPDATE employees SET first_name=?, last_name=?, designation=?, department=?, email_id=?, contact_no=?, hire_date=?, pay_rate_hourly=?, active=?, Total_hours=?, overtime_hours=?, doubletime_hours=?, pay_date=?, ssn=?, customer=?, bankname=?, accountno=?, extended_hours=?, holiday_paid_hours=?, special_work_hours=? WHERE employee_id=?";
+        // QA FIX: AddEmployeeTab validates name/phone/account-number format
+        // via EmployeeFormValidator, but UpdateEmployeeTab previously did not
+        // validate these at all - allowing an edit to silently corrupt
+        // previously-valid data. Apply the SAME shared validation rules here.
+        if (!EmployeeFormValidator.isValidName(firstName)) {
+            lblStatus.setText("❌ Error: First Name must contain only letters, spaces, apostrophes or hyphens.");
+            lblStatus.setForeground(Color.RED);
+            return;
+        }
+        if (!EmployeeFormValidator.isValidName(lastName)) {
+            lblStatus.setText("❌ Error: Last Name must contain only letters, spaces, apostrophes or hyphens.");
+            lblStatus.setForeground(Color.RED);
+            return;
+        }
+        if (!EmployeeFormValidator.isValidPhone(contactNo)) {
+            lblStatus.setText("❌ Error: Contact Number is invalid. Use digits, optional leading '+', spaces or hyphens (7-20 chars).");
+            lblStatus.setForeground(Color.RED);
+            return;
+        }
+        if (!accountNo.isEmpty() && !EmployeeFormValidator.isValidAccountNo(accountNo)) {
+            lblStatus.setText("❌ Error: Account No is invalid. Use 4-34 letters/digits/hyphens.");
+            lblStatus.setForeground(Color.RED);
+            return;
+        }
 
         try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(UPDATE_SQL)) {
 
-            // Set parameters (মোট 20টি ফিল্ড + WHERE clause)
-            ps.setString(1, txtFirstName.getText().trim().toUpperCase());
-            ps.setString(2, txtLastName.getText().trim().toUpperCase());
-            ps.setString(3, designation); // কম্বো বক্সের মান
-            ps.setString(4, department);  // কম্বো বক্সের মান
-            ps.setString(5, txtEmail.getText().trim().toLowerCase());
-            ps.setString(6, txtContactNo.getText().trim());
-
-            ps.setString(7, hireDateStr.isEmpty() ? null : hireDateStr);
+            ps.setString(1, firstName.toUpperCase());
+            ps.setString(2, lastName.toUpperCase());
+            ps.setString(3, designation);
+            ps.setString(4, department);
+            ps.setString(5, email.toLowerCase());
+            ps.setString(6, contactNo);
+            ps.setString(7, hireDate);
             ps.setDouble(8, payRate);
-            ps.setInt(9, activeStatus);
+            ps.setInt(9, active);
             ps.setDouble(10, totalHours);
             ps.setDouble(11, overtimeHours);
             ps.setDouble(12, doubletimeHours);
-            ps.setString(13, payDateStr.isEmpty() ? null : payDateStr);
-
-            // নতুন ফিল্ড
-            ps.setString(14, txtSsn.getText().trim());
-            ps.setString(15, txtCustomer.getText().trim());
-            ps.setString(16, txtBankName.getText().trim());
-            ps.setString(17, txtAccountNo.getText().trim());
+            ps.setString(13, payDate);
+            ps.setString(14, ssn);
+            ps.setString(15, customer);
+            ps.setString(16, bankName);
+            ps.setString(17, accountNo);
             ps.setDouble(18, extendedHours);
             ps.setDouble(19, holidayPaidHours);
             ps.setDouble(20, specialWorkHours);
 
-            ps.setInt(21, Integer.parseInt(idStr)); // WHERE clause
+            // QA FIX (Bug #1): newly persisted financial columns.
+            ps.setDouble(21, result.grossSalary);
+            ps.setDouble(22, result.taxDeduction);
+            ps.setDouble(23, result.medicalInsurance);
+            ps.setDouble(24, result.totalDeductions);
+            ps.setDouble(25, result.netSalary);
+            ps.setDouble(26, result.bonusAmount);
+
+            // QA FIX: also refresh the per-component amounts (same columns AddEmployeeTab
+            // writes), otherwise the View table kept showing the old overtime/doubletime pay.
+            ps.setDouble(27, result.normalSalary);
+            ps.setDouble(28, result.overtimeSalary);
+            ps.setDouble(29, result.doubletimeSalary);
+            ps.setDouble(30, result.extendedSalary);
+            ps.setDouble(31, result.holidayPaidSalary);
+            ps.setDouble(32, result.specialWorkSalary);
+
+            ps.setInt(33, employeeId);
 
             int rows = ps.executeUpdate();
             if (rows > 0) {
-                JOptionPane.showMessageDialog(this, "Employee ID " + idStr + " updated successfully!", "Update Success", JOptionPane.INFORMATION_MESSAGE);
-                lblStatus.setText("✅ Employee ID " + idStr + " updated successfully! Refresh View Tab.");
+                lblStatus.setText("✅ Employee #" + employeeId + " updated successfully.");
                 lblStatus.setForeground(new Color(0, 128, 0));
-
-                // ID রেখে অন্যান্য ক্ষেত্রগুলি পরিষ্কার করা এবং তারপর পুনরায় লোড করা
-                String currentId = txtEmployeeId.getText();
-                clearFields();
-                txtEmployeeId.setText(currentId);
-                fetchEmployeeDetails(currentId); // আপডেট হওয়ার পরে নতুন ডেটা লোড করুন
-            }
-            else {
-                lblStatus.setText("Status: Update failed! Check Employee ID.");
+            } else {
+                lblStatus.setText("❌ Error: Employee ID " + employeeId + " not found (no rows updated).");
                 lblStatus.setForeground(Color.RED);
             }
-
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Database Error during update: " + ex.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
-            lblStatus.setText("Status: Error updating employee: " + ex.getMessage());
+            lblStatus.setText("❌ Database Error: " + ex.getMessage());
             lblStatus.setForeground(Color.RED);
+            ex.printStackTrace();
         }
     }
 
+    /**
+     * Clears the form back to its initial (non-editable, no employee loaded) state.
+     * QA FIX: made public - RefreshTab.java calls updateTab.clearFields() directly.
+     */
     public void clearFields() {
         txtEmployeeId.setText("");
         txtFirstName.setText("");
         txtLastName.setText("");
-        cmbDesignation.setSelectedIndex(0);
-        cmbDepartment.setSelectedIndex(0);
         txtEmail.setText("");
         txtContactNo.setText("");
         txtPayRateHourly.setText("");
@@ -500,9 +581,6 @@ public class UpdateEmployeeTab extends JPanel {
         txtOvertimeHours.setText("");
         txtDoubletimeHours.setText("");
         txtPayDate.setText("");
-        txtCalculation.setText(""); // NEW
-
-        // নতুন ফিল্ড
         txtSsn.setText("");
         txtCustomer.setText("");
         txtBankName.setText("");
@@ -510,14 +588,30 @@ public class UpdateEmployeeTab extends JPanel {
         txtExtendedHours.setText("");
         txtHolidayPaidHours.setText("");
         txtSpecialWorkHours.setText("");
+        txtBonusAmount.setText("");
+        txtCalculation.setText("");
+        txtGrossSalary.setText("");
+        txtTaxDeduction.setText("");
+        txtMedicalInsurance.setText("");
+        txtTotalDeductions.setText("");
+        txtNetSalary.setText("");
 
         cmbActive.setSelectedIndex(0);
+        cmbDepartment.setSelectedIndex(0);
+        cmbDesignation.setSelectedIndex(0);
 
-        lblStatus.setText("Status: Ready");
-        lblStatus.setForeground(Color.BLACK);
         setFieldsEditable(false);
-        txtEmployeeId.setEditable(true);
-    }
 
-    // **দ্রষ্টব্য:** এই কোডটি DBConnection ক্লাস এবং আপনার ডাটাবেসের স্কিমা (employee টেবিলের কলাম নাম) বিদ্যমান এবং সঠিক বলে ধরে নিয়েছে।
+        lblStatus.setText("Enter Employee ID and click 'Load Employee'.");
+        lblStatus.setForeground(Color.BLACK);
+    }
 }
+
+/*
+ * দ্রষ্টব্য: এই কোডটি DBConnection ক্লাস এবং আপনার ডাটাবেসের স্কিমা (employee
+ * টেবিলের কলাম নাম) বিদ্যমান এবং সঠিক বলে ধরে নিয়েছে। UPDATE কোয়েরিতে নতুন
+ * যোগ করা ৬টি কলাম (gross_salary, tax_deduction, medical_insurance,
+ * total_deductions, net_salary, bonus_amount) আপনার employees টেবিলে অবশ্যই
+ * থাকতে হবে - AddEmployeeTab-এর INSERT কোয়েরিতে এই কলামগুলো ইতিমধ্যে ব্যবহৃত
+ * হচ্ছে।
+ */

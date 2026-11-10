@@ -10,7 +10,22 @@ import java.awt.*;
 import java.sql.*;
 import java.util.Vector;
 
+// ==============================================================
+// MAIN GUI CLASS
+// ==============================================================
+// QA FIX: removed the placeholder ViewEmployeeTab, DeleteEmployeeTab,
+// WelcomeTab, LoginTab and RefreshTab classes that used to be defined
+// inline here. Each of these already exists as its own top-level public
+// class in its own file (ViewEmployeeTab.java, DeleteEmployeeTab.java,
+// WelcomeTab.java, LoginTab.java, RefreshTab.java), which caused
+// "duplicate class" compilation errors. The standalone versions are the
+// real, fully-implemented classes and are used below unchanged.
+// ==============================================================
 public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeAddedListener {
+
+    /** SQL that fills the employee table (active employees only). */
+    public static final String VIEW_SQL = "SELECT employee_id, first_name, last_name, department, designation, contact_no, email_id, pay_rate_hourly, Total_hours, overtime_hours, overtime_amount, doubletime_hours, doubletime_amount, gross_salary, tax_deduction, medical_insurance, total_deductions, net_salary, pay_date FROM employees WHERE active = 1 ORDER BY employee_id";
+
 
     private static final long serialVersionUID = 1L;
 
@@ -54,8 +69,8 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
         // Instantiate Tabs (Using the fixed versions)
         updateTab = new UpdateEmployeeTab();
         viewTab = new ViewEmployeeTab(this);
-        AddEmployeeTab addTab = new AddEmployeeTab(this); 
-        
+        AddEmployeeTab addTab = new AddEmployeeTab(this);
+
         DeleteEmployeeTab deleteTab = new DeleteEmployeeTab();
         SearchEmployeeTab searchTab = new SearchEmployeeTab(); // FIXED
         PayslipTab payslipTab = new PayslipTab(); // FIXED
@@ -69,6 +84,7 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
         tabbedPane.addTab("Delete Employee", deleteTab);
         tabbedPane.addTab("Search Employee", searchTab);
         tabbedPane.addTab("Payslip", payslipTab);
+        // QA FIX: RefreshTab's real constructor takes (ViewEmployeeTab, UpdateEmployeeTab)
         tabbedPane.addTab("Refresh", new RefreshTab(viewTab, updateTab));
 
         // --- Sidebar Button Panel ---
@@ -80,7 +96,7 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
         // Apply theme/font
         setUIFont(new javax.swing.plaf.FontUIResource("Segoe UI", Font.PLAIN, 14));
 
-        loadEmployeesFromDB(); 
+        loadEmployeesFromDB();
     }
 
     // ===============================================
@@ -108,7 +124,7 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
                     System.exit(0);
                 } else {
                     // Normalize label for JTabbedPane lookup (View Employees vs View Employees)
-                    String tabTitle = label.equals("View Employees") ? "View Employees" : label; 
+                    String tabTitle = label.equals("View Employees") ? "View Employees" : label;
                     int index = tabbedPane.indexOfTab(tabTitle);
                     if (index != -1) tabbedPane.setSelectedIndex(index);
                 }
@@ -140,8 +156,10 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
             private void search() {
                 String text = txtSearch.getText();
                 // Filter rows based on First Name (col 1) and Last Name (col 2)
-                sorter.setRowFilter(text.isEmpty() ? null :
-                        RowFilter.regexFilter("(?i)" + text, 1, 2));
+                // QA FIX: use SearchFilterHelper.safeRegexFilter so an invalid
+                // regex (e.g. "(" or "*") typed by the user can't throw
+                // PatternSyntaxException - it just shows all rows instead.
+                sorter.setRowFilter(SearchFilterHelper.safeRegexFilter(text, 1, 2));
             }
         });
 
@@ -159,7 +177,7 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
 
         tabbedPane.addTab("View Employees", panel);
     }
-    
+
     // ===============================================
     // 4. DB & DATA METHODS
     // ===============================================
@@ -171,9 +189,9 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
         } catch (SQLException e) {
             conn = null;
             System.err.println("ERROR: Cannot connect to DB: " + e.getMessage());
-            JOptionPane.showMessageDialog(this, 
-                "ERROR: Database connection failed. Check DBConnection.java and MySQL server status.\n" + e.getMessage(), 
-                "Connection Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                    "ERROR: Database connection failed. Check DBConnection.java and MySQL server status.\n" + e.getMessage(),
+                    "Connection Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -186,7 +204,7 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
         }
 
         // Ensure you select all 19 columns required by the table model
-        String sql = "SELECT employee_id, first_name, last_name, department, designation, contact_no, email_id, pay_rate_hourly, Total_hours, overtime_hours, overtime_amount, doubletime_hours, doubletime_amount, gross_salary, tax_deduction, medical_insurance, total_deductions, net_salary, pay_date FROM employees WHERE active = 1 ORDER BY employee_id";
+        String sql = VIEW_SQL;
 
         try (Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
@@ -194,25 +212,25 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
             while (rs.next()) {
                 Vector<Object> row = new Vector<>();
                 // Populate row vector based on 19 columns
-                row.add(rs.getInt("employee_id"));             
-                row.add(rs.getString("first_name"));           
-                row.add(rs.getString("last_name"));            
-                row.add(rs.getString("department"));           
-                row.add(rs.getString("designation"));          
-                row.add(rs.getString("contact_no"));           
-                row.add(rs.getString("email_id"));             
-                row.add(rs.getDouble("pay_rate_hourly"));      
-                row.add(rs.getDouble("Total_hours"));          
-                row.add(rs.getDouble("overtime_hours"));       
-                row.add(rs.getDouble("overtime_amount"));      
-                row.add(rs.getDouble("doubletime_hours"));     
-                row.add(rs.getDouble("doubletime_amount"));    
-                row.add(rs.getDouble("gross_salary"));         
-                row.add(rs.getDouble("tax_deduction"));        
-                row.add(rs.getDouble("medical_insurance"));    
-                row.add(rs.getDouble("total_deductions"));     
-                row.add(rs.getDouble("net_salary"));           
-                row.add(rs.getDate("pay_date"));               
+                row.add(rs.getInt("employee_id"));
+                row.add(rs.getString("first_name"));
+                row.add(rs.getString("last_name"));
+                row.add(rs.getString("department"));
+                row.add(rs.getString("designation"));
+                row.add(rs.getString("contact_no"));
+                row.add(rs.getString("email_id"));
+                row.add(rs.getDouble("pay_rate_hourly"));
+                row.add(rs.getDouble("Total_hours"));
+                row.add(rs.getDouble("overtime_hours"));
+                row.add(rs.getDouble("overtime_amount"));
+                row.add(rs.getDouble("doubletime_hours"));
+                row.add(rs.getDouble("doubletime_amount"));
+                row.add(rs.getDouble("gross_salary"));
+                row.add(rs.getDouble("tax_deduction"));
+                row.add(rs.getDouble("medical_insurance"));
+                row.add(rs.getDouble("total_deductions"));
+                row.add(rs.getDouble("net_salary"));
+                row.add(rs.getDate("pay_date"));
 
                 tableModel.addRow(row);
             }

@@ -6,17 +6,17 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.*;
 import java.text.DecimalFormat;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class PayslipTab extends JPanel {
 
+    /** SQL that loads one payroll record for the payslip and cheque. */
+    public static final String PAYSLIP_SQL = "SELECT * FROM employees WHERE employee_id = ? AND pay_date = ?";
+
+
     private static final long serialVersionUID = 1L;
-    private static final DateTimeFormatter INPUT_DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yyyy");
-    private static final DateTimeFormatter SQL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00");
 
     // Input fields
@@ -261,9 +261,10 @@ public class PayslipTab extends JPanel {
         }
 
         String sqlPayDate;
+        // QA FIX: date parsing/format conversion now delegates to
+        // PayslipFormatter.toSqlDate(...) (pure logic, unit/Cucumber tested).
         try {
-            LocalDate parsed = LocalDate.parse(payDateStr, INPUT_DATE_FORMAT);
-            sqlPayDate = parsed.format(SQL_DATE_FORMAT);
+            sqlPayDate = PayslipFormatter.toSqlDate(payDateStr);
         } catch (DateTimeParseException e) {
             JOptionPane.showMessageDialog(this, "তারিখের বিন্যাস ভুল। MM/DD/YYYY বিন্যাস ব্যবহার করুন।", "Input Error", JOptionPane.ERROR_MESSAGE);
             return;
@@ -274,7 +275,7 @@ public class PayslipTab extends JPanel {
 
     private void fetchPayslipFromDB(int empId, String sqlPayDate, String displayPayDate) {
         // SQL query uses employee_id AND pay_date, as both fields are now confirmed to be in the 'employees' table.
-        String sql = "SELECT * FROM employees WHERE employee_id = ? AND pay_date = ?"; 
+        String sql = PAYSLIP_SQL;
         
         try (Connection conn = DBConnection.getConnection(); 
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -372,7 +373,10 @@ public class PayslipTab extends JPanel {
         lblNetAmt.setText("Net Salary: $" + MONEY.format(netSalary));
 
         // Convert net salary to words dynamically
-        String amountInWords = convertAmountToWords(netSalary);
+        // QA FIX (Bug #7): replaced the in-class convertAmountToWords(...)
+        // (which had a missing-space bug and dropped amounts >= 1 billion)
+        // with the extracted, unit-tested AmountToWordsConverter.
+        String amountInWords = safeAmountToWords(netSalary);
         lblAmountWords.setText("Amount in words: " + amountInWords);
         lblPayTo.setText("PAY TO THE ORDER OF: " + fullName);
     }
@@ -381,13 +385,21 @@ public class PayslipTab extends JPanel {
         String fullName = rs.getString("first_name") + " " + rs.getString("last_name");
         double netSalary = rs.getDouble("net_salary");
         String formattedNetSalary = MONEY.format(netSalary);
-        String amountInWords = convertAmountToWords(netSalary);
+        String amountInWords = safeAmountToWords(netSalary);
         
         lblChequeDate.setText("Date: " + displayPayDate);
         lblChequePayee.setText(fullName);
         lblChequeAmount.setText(formattedNetSalary);
         
-        String wordsForCheque = amountInWords.toUpperCase().replace(" DOLLARS", "").replace(" AND ", " AND ").replace(" CENTS", "/100");
+        // QA FIX: cheque-words formatting now delegates to
+        // PayslipFormatter.toChequeWords(...) (pure logic, unit/Cucumber tested).
+        // QA FIX: standard cheque line "... AND 50/100" (cents always shown as digits)
+        String wordsForCheque;
+        try {
+            wordsForCheque = PayslipFormatter.toChequeLine(netSalary);
+        } catch (IllegalArgumentException e) {
+            wordsForCheque = "INVALID AMOUNT";
+        }
         lblChequeWords.setText(wordsForCheque);
     }
 
@@ -418,98 +430,23 @@ public class PayslipTab extends JPanel {
     }
 
     // ------------------- Number to words converter -------------------
-    private static final String[] tensNames = {
-            "", " Ten", " Twenty", " Thirty", " Forty", " Fifty", " Sixty", " Seventy", " Eighty", " Ninety"
-    };
+    // QA FIX (Bug #7): the old in-class converter (tensNames/numNames
+    // arrays + convertAmountToWords/convertNumberToWords/convertHundreds)
+    // has been removed. It had a missing-space bug (e.g. "One
+    // ThousandTwo Hundred...") and silently dropped amounts >= 1 billion.
+    // It is replaced by the extracted, unit-tested AmountToWordsConverter
+    // (see AmountToWordsConverter.java / AmountToWordsConverterTest.java).
 
-    private static final String[] numNames = {
-            "", " One", " Two", " Three", " Four", " Five", " Six", " Seven", " Eight", " Nine",
-            " Ten", " Eleven", " Twelve", " Thirteen", " Fourteen", " Fifteen", " Sixteen", " Seventeen",
-            " Eighteen", " Nineteen"
-    };
-
-    private String convertAmountToWords(double amount) {
-        if (amount == 0) return "Zero Dollars";
-
-        long dollars = (long) amount;
-        long cents = Math.round((amount - dollars) * 100);
-
-        String words = convertNumberToWords(dollars) + " Dollars";
-        if (cents > 0) {
-            words += " and " + convertNumberToWords(cents) + " Cents";
+    /**
+     * Wraps {@link AmountToWordsConverter#convert(double)} so a (theoretically
+     * impossible, but defensively handled) negative net salary doesn't crash
+     * payslip/cheque generation - it shows an explanatory placeholder instead.
+     */
+    private String safeAmountToWords(double amount) {
+        try {
+            return AmountToWordsConverter.convert(amount);
+        } catch (IllegalArgumentException e) {
+            return "(Invalid amount: " + MONEY.format(amount) + ")";
         }
-        return words.trim();
-    }
-    
-    private String convertNumberToWords(long number) {
-        if (number == 0) return "";
-
-        String current;
-        int group = (int) (number % 1000);
-        number /= 1000;
-        
-        if (group == 0) {
-            current = "";
-        } else if (group < 20) {
-            current = numNames[group];
-        } else if (group < 100) {
-            int tens = group / 10;
-            int ones = group % 10;
-            current = tensNames[tens] + numNames[ones];
-        } else {
-            int hundreds = group / 100;
-            int remainder = group % 100;
-            if (remainder < 20) {
-                current = numNames[hundreds] + " Hundred" + numNames[remainder];
-            } else {
-                int tens = remainder / 10;
-                int ones = remainder % 10;
-                current = numNames[hundreds] + " Hundred" + tensNames[tens] + numNames[ones];
-            }
-        }
-
-        String result = current;
-        
-        long thousands = number % 1000;
-        number /= 1000;
-
-        if (thousands > 0) {
-            result = convertHundreds(thousands) + " Thousand" + result;
-        }
-
-        long millions = number % 1000;
-        number /= 1000;
-
-        if (millions > 0) {
-            result = convertHundreds(millions) + " Million" + result;
-        }
-        
-        return result.trim();
-    }
-    
-    private String convertHundreds(long number) {
-        if (number == 0) return "";
-
-        String current;
-        int group = (int) number;
-
-        if (group < 20) {
-            current = numNames[group];
-        } else if (group < 100) {
-            int tens = group / 10;
-            int ones = group % 10;
-            current = tensNames[tens] + numNames[ones];
-        } else {
-            int hundreds = group / 100;
-            int remainder = group % 100;
-            if (remainder < 20) {
-                current = numNames[hundreds] + " Hundred" + numNames[remainder];
-            } else {
-                int tens = remainder / 10;
-                int ones = remainder % 10;
-                current = numNames[hundreds] + " Hundred" + tensNames[tens] + numNames[ones];
-            }
-        }
-        return current.trim();
     }
 }

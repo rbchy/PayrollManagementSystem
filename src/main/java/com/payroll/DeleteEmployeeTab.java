@@ -35,16 +35,28 @@ public class DeleteEmployeeTab extends JPanel {
 
     private void deleteEmployee() {
         String idText = txtEmployeeId.getText();
-        if(idText.isEmpty()) {
+        if(DeleteEmployeeHelper.isBlank(idText)) {
             lblStatus.setText("Please enter Employee ID");
             lblStatus.setForeground(Color.RED);
             return;
         }
 
+        // QA FIX: validate the ID is numeric *before* opening a DB
+        // connection, with a clear message instead of letting
+        // NumberFormatException fall through to the generic "Error: ..."
+        // branch below.
+        int employeeId;
+        try {
+            employeeId = DeleteEmployeeHelper.parseEmployeeId(idText);
+        } catch (NumberFormatException nfe) {
+            lblStatus.setText("Employee ID must be a number");
+            lblStatus.setForeground(Color.RED);
+            return;
+        }
+
         try (Connection conn = DBConnection.getConnection()) {
-            String sql = "DELETE FROM employees WHERE employee_id=?";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setInt(1, Integer.parseInt(idText));
+            PreparedStatement ps = conn.prepareStatement(DeleteEmployeeHelper.DELETE_SQL);
+            ps.setInt(1, employeeId);
             int rows = ps.executeUpdate();
 
             if(rows > 0) {

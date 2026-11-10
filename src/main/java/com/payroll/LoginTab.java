@@ -89,7 +89,9 @@ public class LoginTab extends JPanel {
             String username = txtUsername.getText();
             String password = new String(txtPassword.getPassword());
 
-            if ("admin".equals(username) && "admin123".equals(password)) {
+            // QA FIX: credential check extracted to AuthService.authenticate(...)
+            // so it can be unit/Cucumber tested without a Swing UI.
+            if (AuthService.authenticate(username, password)) {
                 JOptionPane.showMessageDialog(this, "Login successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
 
                 // Switch to Welcome tab (assumes Welcome tab is at index 0)

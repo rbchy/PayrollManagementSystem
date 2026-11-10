@@ -52,27 +52,26 @@ public class SearchEmployeeTab extends JPanel {
             return;
         }
         
-        model.setRowCount(0); 
+        model.setRowCount(0);
 
-        // Columns to select: Must match the order in model.addRow
-        String selectCols = "employee_id, first_name, last_name, designation, contact_no, email_id, department, pay_rate_hourly";
-        
+        // QA FIX: the "is this an ID or a name search?" decision and the SQL
+        // it produces are now in SearchQueryHelper (pure logic, unit/Cucumber
+        // tested), following the EmployeeFormValidator extraction pattern.
         try (Connection conn = DBConnection.getConnection()) {
             String sql;
             PreparedStatement ps;
 
             // Check if the keyword is purely numeric (for ID search)
-            if (keyword.matches("\\d+")) { 
-                sql = "SELECT " + selectCols + " FROM employees WHERE employee_id = ? AND active = 1";
+            if (SearchQueryHelper.isNumericId(keyword)) {
+                sql = SearchQueryHelper.buildIdSearchSql();
                 ps = conn.prepareStatement(sql);
                 ps.setInt(1, Integer.parseInt(keyword));
-                
-            } else { 
+
+            } else {
                 // Search by first name (case-insensitive partial match)
-                // Using UPPER() on both the column and the keyword ensures case-insensitivity
-                sql = "SELECT " + selectCols + " FROM employees WHERE UPPER(first_name) LIKE ? AND active = 1";
+                sql = SearchQueryHelper.buildNameSearchSql();
                 ps = conn.prepareStatement(sql);
-                ps.setString(1, "%" + keyword.toUpperCase() + "%"); 
+                ps.setString(1, SearchQueryHelper.buildNamePattern(keyword));
             }
 
             ResultSet rs = ps.executeQuery();
