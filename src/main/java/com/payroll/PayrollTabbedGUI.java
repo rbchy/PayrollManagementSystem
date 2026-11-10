@@ -10,69 +10,6 @@ import java.awt.*;
 import java.sql.*;
 import java.util.Vector;
 
-// ==============================================================
-// PLACEHOLDER DEFINITIONS FOR DEPENDENT CLASSES
-// NOTE: These are simplified or used to manage functionality.
-// ==============================================================
-
-// 1. ViewEmployeeTab - Manages reloading data
-class ViewEmployeeTab extends JPanel {
-    private PayrollTabbedGUI mainGui;
-    public ViewEmployeeTab(PayrollTabbedGUI gui) {
-        super(new BorderLayout()); 
-        this.mainGui = gui;
-        // Content handled by mainGui.addViewTab()
-    }
-    public void reloadEmployees() {
-        System.out.println("LOG: View tab triggered data reload.");
-        if (mainGui != null) {
-            mainGui.loadEmployeesFromDB();
-        }
-    }
-}
-
-// 2. DeleteEmployeeTab
-class DeleteEmployeeTab extends JPanel {
-    public DeleteEmployeeTab() {
-        super(new BorderLayout());
-        add(new JLabel("Delete Employee Tab Logic Here", SwingConstants.CENTER), BorderLayout.CENTER);
-    }
-}
-
-// 3. WelcomeTab
-class WelcomeTab extends JPanel {
-    public WelcomeTab(JTabbedPane tabbedPane) {
-        super(new BorderLayout());
-        JLabel welcomeLabel = new JLabel("<html><h1 style='color: #4CAF50;'>Welcome to the Payroll System!</h1></html>", SwingConstants.CENTER);
-        add(welcomeLabel, BorderLayout.CENTER);
-    }
-}
-
-// 4. LoginTab
-class LoginTab extends JPanel {
-    public LoginTab(JTabbedPane tabbedPane) {
-        super(new BorderLayout());
-        add(new JLabel("Login Tab Logic Here", SwingConstants.CENTER), BorderLayout.CENTER);
-    }
-}
-
-// 5. RefreshTab
-class RefreshTab extends JPanel {
-    public RefreshTab(ViewEmployeeTab viewTab) {
-        super(new BorderLayout());
-        JButton refreshBtn = new JButton("Force Refresh Data");
-        refreshBtn.addActionListener(e -> {
-            viewTab.reloadEmployees();
-            JOptionPane.showMessageDialog(this, "Data refresh triggered!", "Info", JOptionPane.INFORMATION_MESSAGE);
-        });
-        add(refreshBtn, BorderLayout.CENTER);
-    }
-}
-
-
-// ==============================================================
-// MAIN GUI CLASS
-// ==============================================================
 public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeAddedListener {
 
     private static final long serialVersionUID = 1L;
