@@ -69,7 +69,7 @@ public class PayrollTabbedGUI extends JFrame implements AddEmployeeTab.EmployeeA
         tabbedPane.addTab("Delete Employee", deleteTab);
         tabbedPane.addTab("Search Employee", searchTab);
         tabbedPane.addTab("Payslip", payslipTab);
-        tabbedPane.addTab("Refresh", new RefreshTab(viewTab)); // Using viewTab for reload
+        tabbedPane.addTab("Refresh", new RefreshTab(viewTab, updateTab));
 
         // --- Sidebar Button Panel ---
         JPanel sidebar = createSidebar();
